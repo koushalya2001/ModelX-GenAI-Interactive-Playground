@@ -11,10 +11,16 @@ import gemma_guide
 import gemma_coach  # NEW
 
 
-MODEL_OPTIONS = {
-    "Gemma 1 2B (small, cheap)": "google/gemma-2b-it",
-    "Gemma 2 9B (general)": "google/gemma-2-9b-it",
-    "Gemma 2 27B (strong reasoning)": "google/gemma-2-27b-it",
+# Model options per backend
+OPENROUTER_MODEL_OPTIONS = {
+    "Gemma 4 26B A4B (free)": "google/gemma-4-26b-a4b-it:free",
+    "Gemma 4 31B (free)": "google/gemma-4-31b-it:free",
+}
+
+# Replace the IDs below with the exact Google AI Studio model IDs when you wire the client.
+GOOGLE_MODEL_OPTIONS = {
+    "Gemma 4 E2B-it": "gemma-4.0-e2b-it",
+    "Gemma 4 E4B-it": "gemma-4.0-e4b-it",
 }
 
 
@@ -39,6 +45,13 @@ def init_session_state():
         }
     if "cost_per_1k_tokens" not in st.session_state:
         st.session_state.cost_per_1k_tokens = 0.0
+    if "backend_config" not in st.session_state:
+        st.session_state.backend_config = {
+            "OpenRouter": {"api_key": "", "active_label": None, "active_model": None},
+            "Google AI Studio": {"api_key": "", "active_label": None, "active_model": None},
+        }
+    if "active_backend" not in st.session_state:
+        st.session_state.active_backend = "OpenRouter"
 
 
 def main():
@@ -51,22 +64,104 @@ def main():
     st.title("🧠 Gemma GenAI & Agentic Playground")
     st.caption(
         "Explore model choices, agent vs chatbot architectures, RAG designs, KV/cache behaviour, "
-        "prompt injections, and evaluation – all on top of Gemma via OpenRouter."
+        "prompt injections, and evaluation – all on top of Gemma models."
     )
 
     with st.sidebar:
-        st.header("🔐 OpenRouter Setup")
-        api_key = st.text_input("OpenRouter API key", type="password")
-        model_label = st.selectbox("Model", list(MODEL_OPTIONS.keys()))
-        model_id = MODEL_OPTIONS[model_label]
+        st.header("🧠 Model backends & availability")
+
+        # 1. Static index of models per backend
+        with st.expander("OpenRouter models", expanded=True):
+            st.write("**Free Gemma 4 models on OpenRouter:**")
+            for label, mid in OPENROUTER_MODEL_OPTIONS.items():
+                st.write(f"- {label} → `{mid}`")
+            st.caption(
+                "Free Gemma 4 26B A4B & 31B via OpenRouter (no card needed, subject to OpenRouter free limits)."
+            )
+
+        with st.expander("Google AI Studio models"):
+            st.write("**Gemma 4 models on Google AI Studio (requires Google key):**")
+            for label, mid in GOOGLE_MODEL_OPTIONS.items():
+                st.write(f"- {label} → `{mid}`")
+            st.caption(
+                "Use Google AI Studio for Gemma 4 E2B/E4B. This app currently only wires live calls through OpenRouter; "
+                "Google support is planned."
+            )
+
+        st.markdown("---")
+
+        # 2. Choose which backends to configure (can pick both)
+        backends_selected = st.multiselect(
+            "Backends to configure",
+            options=["OpenRouter", "Google AI Studio"],
+            default=["OpenRouter"],
+            help="Configure one or both backends; then pick which one is active for live calls.",
+        )
+
+        st.header("🔐 Backend configuration")
+
+        # OpenRouter backend
+        if "OpenRouter" in backends_selected:
+            st.subheader("OpenRouter")
+            st.session_state.backend_config["OpenRouter"]["api_key"] = st.text_input(
+                "OpenRouter API key",
+                type="password",
+                key="openrouter_api_key",
+            )
+            openrouter_label = st.selectbox(
+                "OpenRouter Gemma model",
+                list(OPENROUTER_MODEL_OPTIONS.keys()),
+                key="openrouter_model_label",
+            )
+            st.session_state.backend_config["OpenRouter"]["active_label"] = openrouter_label
+            st.session_state.backend_config["OpenRouter"]["active_model"] = OPENROUTER_MODEL_OPTIONS[
+                openrouter_label
+            ]
+
+        # Google AI Studio backend (UI only for now)
+        if "Google AI Studio" in backends_selected:
+            st.subheader("Google AI Studio")
+            st.session_state.backend_config["Google AI Studio"]["api_key"] = st.text_input(
+                "Google AI Studio API key",
+                type="password",
+                key="google_api_key",
+                help="From Google AI Studio; used for Gemma 4 E2B/E4B when wired.",
+            )
+            google_label = st.selectbox(
+                "Google Gemma 4 model",
+                list(GOOGLE_MODEL_OPTIONS.keys()),
+                key="google_model_label",
+            )
+            st.session_state.backend_config["Google AI Studio"]["active_label"] = google_label
+            st.session_state.backend_config["Google AI Studio"]["active_model"] = GOOGLE_MODEL_OPTIONS[
+                google_label
+            ]
+
+        st.markdown("---")
+
+        # 3. Single active backend for now (the one we actually call)
+        st.session_state.active_backend = st.radio(
+            "Active backend for this session",
+            options=backends_selected or ["OpenRouter"],
+            key="active_backend_radio",
+            help="This backend will be used for all live LLM calls in the playground.",
+        )
+
+        active_backend = st.session_state.active_backend
+        active_cfg = st.session_state.backend_config[active_backend]
+        st.caption(
+            f"Active backend: **{active_backend}**, model: "
+            f"`{active_cfg.get('active_label') or 'not selected'}`"
+        )
 
         st.markdown("---")
         st.header("💰 Cost assumptions (optional)")
         st.session_state.cost_per_1k_tokens = st.number_input(
             "Cost per 1K tokens (USD, estimated)",
             min_value=0.0,
-            value=0.0,
+            value=float(st.session_state.cost_per_1k_tokens),
             step=0.001,
+            format="%.3f",
             help="Used only for estimated cost in the scorecard; set to 0 if you don't care.",
         )
 
@@ -130,17 +225,46 @@ def main():
             ],
         )
 
+    # Instantiate client for the active backend (currently only OpenRouter wired)
     client = None
-    if api_key:
+    model_label = None
+
+    active_backend = st.session_state.active_backend
+    cfg = st.session_state.backend_config[active_backend]
+
+    if active_backend == "OpenRouter":
+        api_key = cfg.get("api_key")
+        model_id = cfg.get("active_model")
+        model_label = cfg.get("active_label")
+        if api_key and model_id:
+            client = OpenRouterClient(
+                api_key=api_key,
+                model=model_id,
+                enable_response_cache=enable_cache,
+                app_title="Gemma GenAI & Agentic Playground",
+            )
+    elif active_backend == "Google AI Studio":
+        # Placeholder: you can later add a GoogleGemmaClient that matches OpenRouterClient.chat(...)
+        model_label = cfg.get("active_label")
+        st.warning(
+            "Google AI Studio backend is configured in the UI but not yet wired to a client. "
+            "Live calls will still go through OpenRouter when available."
+        )
+
+    # Fall back: if client is None but we have an OpenRouter config, try that for now
+    if client is None and st.session_state.backend_config["OpenRouter"].get("api_key"):
+        fallback_cfg = st.session_state.backend_config["OpenRouter"]
+        model_label = fallback_cfg.get("active_label")
         client = OpenRouterClient(
-            api_key=api_key,
-            model=model_id,
+            api_key=fallback_cfg["api_key"],
+            model=fallback_cfg["active_model"],
             enable_response_cache=enable_cache,
             app_title="Gemma GenAI & Agentic Playground",
         )
 
+    # Route to pages
     if page == "Playground (LLM & Agent)":
-        playground.render(client, model_label)
+        playground.render(client, model_label or "Unknown model")
     elif page == "Design decisions":
         design_decisions.render()
     elif page == "RAG & Vector DB lab":
@@ -149,11 +273,11 @@ def main():
         safety_lab.render(client)
     elif page == "Metrics scorecard & system design":
         metrics_scorecard.render()
-        diagrams.render_diagram_panel(model_label)
+        diagrams.render_diagram_panel(model_label or "Unknown model")
     elif page == "Gemma 2B guide":
-        gemma_guide.render(model_label)
+        gemma_guide.render(model_label or "Unknown model")
     elif page == "Gemma coach & quiz":
-        gemma_coach.render(client, model_label)
+        gemma_coach.render(client, model_label or "Unknown model")
 
 
 if __name__ == "__main__":
