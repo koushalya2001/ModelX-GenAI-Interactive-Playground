@@ -1,6 +1,7 @@
 import streamlit as st
 
 from openrouter_client import OpenRouterClient
+from google_ai_client import GoogleGemmaClient  # NEW
 import playground
 import design_decisions
 import rag_lab
@@ -9,7 +10,7 @@ import metrics_scorecard
 import diagrams
 import gemma_guide
 import gemma_coach  # NEW
-
+import infra_explainer
 
 # Model options per backend
 OPENROUTER_MODEL_OPTIONS = {
@@ -19,8 +20,8 @@ OPENROUTER_MODEL_OPTIONS = {
 
 # Replace the IDs below with the exact Google AI Studio model IDs when you wire the client.
 GOOGLE_MODEL_OPTIONS = {
-    "Gemma 4 E2B-it": "gemma-4.0-e2b-it",
-    "Gemma 4 E4B-it": "gemma-4.0-e4b-it",
+    "Gemma 4 26B A4B": "gemma-4-26b-a4b-it",
+    "Gemma 4 31B": "gemma-4-31b-it",
 }
 
 
@@ -222,10 +223,11 @@ def main():
                 "Metrics scorecard & system design",
                 "Gemma 2B guide",
                 "Gemma coach & quiz",  # NEW
+                "Infra & Serving 101",  # NEW
             ],
         )
 
-    # Instantiate client for the active backend (currently only OpenRouter wired)
+    # Instantiate client for the active backend (exactly one client/model at a time)
     client = None
     model_label = None
 
@@ -244,23 +246,20 @@ def main():
                 app_title="Gemma GenAI & Agentic Playground",
             )
     elif active_backend == "Google AI Studio":
-        # Placeholder: you can later add a GoogleGemmaClient that matches OpenRouterClient.chat(...)
+        api_key = cfg.get("api_key")
+        model_id = cfg.get("active_model")
         model_label = cfg.get("active_label")
-        st.warning(
-            "Google AI Studio backend is configured in the UI but not yet wired to a client. "
-            "Live calls will still go through OpenRouter when available."
-        )
-
-    # Fall back: if client is None but we have an OpenRouter config, try that for now
-    if client is None and st.session_state.backend_config["OpenRouter"].get("api_key"):
-        fallback_cfg = st.session_state.backend_config["OpenRouter"]
-        model_label = fallback_cfg.get("active_label")
-        client = OpenRouterClient(
-            api_key=fallback_cfg["api_key"],
-            model=fallback_cfg["active_model"],
-            enable_response_cache=enable_cache,
-            app_title="Gemma GenAI & Agentic Playground",
-        )
+        if api_key and model_id:
+            client = GoogleGemmaClient(
+                api_key=api_key,
+                model=model_id,
+            )
+    st.markdown(
+        f"**Active backend:** `{active_backend}` · "
+        f"**Model:** `{model_label or 'not selected'}`"
+    )
+    # If no client could be created, pages will show an info message when they need it.
+    # If no client could be created, pages will show an info message when they need it.
 
     # Route to pages
     if page == "Playground (LLM & Agent)":
@@ -278,6 +277,8 @@ def main():
         gemma_guide.render(model_label or "Unknown model")
     elif page == "Gemma coach & quiz":
         gemma_coach.render(client, model_label or "Unknown model")
+    elif page == "Infra & Serving 101":  # NEW
+        infra_explainer.render(client, model_label or "Unknown model")
 
 
 if __name__ == "__main__":
