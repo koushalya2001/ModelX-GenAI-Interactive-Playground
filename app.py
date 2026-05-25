@@ -15,6 +15,7 @@ import ui_flow_explainer
 import google_context_cache_demo
 import grounding_playground
 import how_to_use
+import timeout_lab
 # Model options per backend
 OPENROUTER_MODEL_OPTIONS = {
     "Gemma 4 26B A4B (free)": "google/gemma-4-26b-a4b-it:free",
@@ -88,8 +89,7 @@ def main():
             for label, mid in GOOGLE_MODEL_OPTIONS.items():
                 st.write(f"- {label} → `{mid}`")
             st.caption(
-                "Use Google AI Studio for Gemma 4 E2B/E4B. This app currently only wires live calls through OpenRouter; "
-                "Google support is planned."
+                "Use Google AI Studio for Gemma 4. This app lets you switch between OpenRouter and Google AI Studio as backends."
             )
 
         st.markdown("---")
@@ -225,6 +225,7 @@ def main():
                 "RAG & Vector DB lab",
                 "Prompt injection & safety lab",
                 "Metrics scorecard & system design",
+                "Timeout & resilience lab",   # NEW
                 "Grounding playground",
                 "Gemma 2B guide",
                 "Gemma coach & quiz",  # NEW
@@ -232,6 +233,8 @@ def main():
                 "UI–Model–Agent flow",   # NEW
                 "Google context caching demo",  # NEW
             ],
+            key="section_radio",  # <-- add this
+
         )
 
     # Instantiate client for the active backend (exactly one client/model at a time)
@@ -260,6 +263,7 @@ def main():
             client = GoogleGemmaClient(
                 api_key=api_key,
                 model=model_id,
+                timeout_s=200.0
             )
     st.markdown(
         f"**Active backend:** `{active_backend}` · "
@@ -285,8 +289,6 @@ def main():
     elif page == "Metrics scorecard & system design":
         metrics_scorecard.render()
         diagrams.render_diagram_panel(model_label or "Unknown model")
-    elif page == "Grounding playground":
-        grounding_playground.render(client, model_label or "Unknown model")
     elif page == "Gemma 2B guide":
         gemma_guide.render(model_label or "Unknown model")
     elif page == "Gemma coach & quiz":
@@ -301,6 +303,8 @@ def main():
         google_api_key = google_cfg.get("api_key")
         google_model_id = google_cfg.get("active_model")
         google_context_cache_demo.render(google_model_id, google_api_key)
+    elif page == "Timeout & resilience lab":
+        timeout_lab.render(client, model_label or "Unknown model")
 
 
 if __name__ == "__main__":
