@@ -11,7 +11,8 @@ import diagrams
 import gemma_guide
 import gemma_coach  # NEW
 import infra_explainer
-
+import ui_flow_explainer
+import google_context_cache_demo
 # Model options per backend
 OPENROUTER_MODEL_OPTIONS = {
     "Gemma 4 26B A4B (free)": "google/gemma-4-26b-a4b-it:free",
@@ -212,18 +213,22 @@ def main():
 
         st.markdown("---")
         enable_cache = st.checkbox("Enable response caching demo", value=True)
-
+        if st.button("🚀 Start here: How to use this portal"):
+            st.session_state.section_radio = "⭐ How to use this portal (start here)"
         page = st.radio(
             "Section",
-            [
-                "Playground (LLM & Agent)",
+            [   "⭐ How to use this portal (start here)", 
+                "Playground (LLM & Agent)",                
                 "Design decisions",
                 "RAG & Vector DB lab",
                 "Prompt injection & safety lab",
                 "Metrics scorecard & system design",
+                "Grounding playground",
                 "Gemma 2B guide",
                 "Gemma coach & quiz",  # NEW
                 "Infra & Serving 101",  # NEW
+                "UI–Model–Agent flow",   # NEW
+                "Google context caching demo",  # NEW
             ],
         )
 
@@ -262,8 +267,11 @@ def main():
     # If no client could be created, pages will show an info message when they need it.
 
     # Route to pages
+    
     if page == "Playground (LLM & Agent)":
         playground.render(client, model_label or "Unknown model")
+    elif page == "Grounding playground":
+        grounding_playground.render(client, model_label or "Unknown model")
     elif page == "Design decisions":
         design_decisions.render()
     elif page == "RAG & Vector DB lab":
@@ -273,12 +281,22 @@ def main():
     elif page == "Metrics scorecard & system design":
         metrics_scorecard.render()
         diagrams.render_diagram_panel(model_label or "Unknown model")
+    elif page == "Grounding playground":
+        grounding_playground.render(client, model_label or "Unknown model")
     elif page == "Gemma 2B guide":
         gemma_guide.render(model_label or "Unknown model")
     elif page == "Gemma coach & quiz":
         gemma_coach.render(client, model_label or "Unknown model")
     elif page == "Infra & Serving 101":  # NEW
         infra_explainer.render(client, model_label or "Unknown model")
+    elif page == "UI–Model–Agent flow":
+        ui_flow_explainer.render(client, model_label or "Unknown model")
+    elif page == "Google context caching demo":
+    # Only meaningful when Google AI Studio is configured
+        google_cfg = st.session_state.backend_config["Google AI Studio"]
+        google_api_key = google_cfg.get("api_key")
+        google_model_id = google_cfg.get("active_model")
+        google_context_cache_demo.render(google_model_id, google_api_key)
 
 
 if __name__ == "__main__":
