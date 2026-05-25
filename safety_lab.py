@@ -47,7 +47,7 @@ def render(client: Optional[OpenRouterClient]) -> None:
     if client is None:
         st.info("Provide an OpenRouter API key in the sidebar to run live model calls.")
         return
-
+    verdict = ""   # <-- ADD THIS LINE
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 1️⃣ Harmless baseline")
