@@ -273,7 +273,7 @@ def main():
     if page == "Playground (LLM & Agent)":
         playground.render(client, model_label or "Unknown model")
     elif page == "⭐ How to use this portal (start here)":
-        how_to_use.render(client, model_label or "Unknown model")
+        how_to_use.render()
     elif page == "Grounding playground":
         grounding_playground.render(client, model_label or "Unknown model")
     elif page == "Design decisions":
