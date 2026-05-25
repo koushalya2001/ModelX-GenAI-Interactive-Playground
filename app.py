@@ -13,6 +13,7 @@ import gemma_coach  # NEW
 import infra_explainer
 import ui_flow_explainer
 import google_context_cache_demo
+import grounding_playground
 # Model options per backend
 OPENROUTER_MODEL_OPTIONS = {
     "Gemma 4 26B A4B (free)": "google/gemma-4-26b-a4b-it:free",
