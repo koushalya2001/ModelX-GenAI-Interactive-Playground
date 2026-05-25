@@ -12,7 +12,7 @@ import gemma_guide
 import gemma_coach  # NEW
 import infra_explainer
 import ui_flow_explainer
-import google_context_cache_demo
+#import google_context_cache_demo
 import grounding_playground
 import how_to_use
 import timeout_lab
@@ -230,8 +230,8 @@ def main():
                 "Gemma 2B guide",
                 "Gemma coach & quiz",  # NEW
                 "Infra & Serving 101",  # NEW
-                "UI–Model–Agent flow",   # NEW
-                "Google context caching demo",  # NEW
+                "UI–Model–Agent flow"   # NEW ,
+                #"Google context caching demo",  # NEW
             ],
             key="section_radio",  # <-- add this
 
@@ -297,12 +297,12 @@ def main():
         infra_explainer.render(client, model_label or "Unknown model")
     elif page == "UI–Model–Agent flow":
         ui_flow_explainer.render(client, model_label or "Unknown model")
-    elif page == "Google context caching demo":
+    #elif page == "Google context caching demo":
     # Only meaningful when Google AI Studio is configured
-        google_cfg = st.session_state.backend_config["Google AI Studio"]
-        google_api_key = google_cfg.get("api_key")
-        google_model_id = google_cfg.get("active_model")
-        google_context_cache_demo.render(google_model_id, google_api_key)
+    #    google_cfg = st.session_state.backend_config["Google AI Studio"]
+    #    google_api_key = google_cfg.get("api_key")
+    #    google_model_id = google_cfg.get("active_model")
+    #    google_context_cache_demo.render(google_model_id, google_api_key)
     elif page == "Timeout & resilience lab":
         timeout_lab.render(client, model_label or "Unknown model")
 
