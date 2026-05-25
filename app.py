@@ -14,6 +14,7 @@ import infra_explainer
 import ui_flow_explainer
 import google_context_cache_demo
 import grounding_playground
+import how_to_use
 # Model options per backend
 OPENROUTER_MODEL_OPTIONS = {
     "Gemma 4 26B A4B (free)": "google/gemma-4-26b-a4b-it:free",
@@ -271,6 +272,8 @@ def main():
     
     if page == "Playground (LLM & Agent)":
         playground.render(client, model_label or "Unknown model")
+    elif page == "⭐ How to use this portal (start here)":
+        how_to_use.render(client, model_label or "Unknown model")
     elif page == "Grounding playground":
         grounding_playground.render(client, model_label or "Unknown model")
     elif page == "Design decisions":
