@@ -206,7 +206,7 @@ def render(client: Optional[OpenRouterClient], model_label: str) -> None:
         col4, col5, col6 = st.columns(3)
         col4.metric("Total tokens", usage.get("total_tokens", 0))
         col5.metric("Latency (s)", f"{usage.get('latency_s', 0):.2f}")
-        col6.metric("Cache status", cache.get("status", "MISS"))
+        #col6.metric("Cache status", cache.get("status", "MISS"))
 
         st.caption(
             f"Context strategy: **{ctx_meta['strategy']}** – approx tokens before: "
