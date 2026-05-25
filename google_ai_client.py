@@ -17,9 +17,10 @@ class GoogleGemmaClient:
     The interface matches OpenRouterClient.chat(...) so the rest of the app can stay unchanged.
     """
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, timeout_s: float = 100.0) -> None:
         self.api_key = api_key
         self.model = model
+        self.timeout_s = timeout_s
 
     def chat(
         self,
@@ -73,7 +74,26 @@ class GoogleGemmaClient:
 
         url = f"{GOOGLE_BASE_URL}/models/{self.model}:generateContent"
         t_start = time.perf_counter()
-        resp = requests.post(url, params=params, headers=headers, json=payload, timeout=60)
+        try:
+            resp = requests.post(
+                url,
+                params=params,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout_s,  # you can bump this to 90 if needed
+            )
+        except ReadTimeout:
+            t_end = time.perf_counter()
+            latency_s = t_end - t_start
+            return {
+                "content": "Error from Google AI Studio: request timed out after 60 seconds. "
+                           "Try shortening the prompt/context or reducing tool output.",
+                "usage": {},
+                "cache": {},
+                "latency_s": latency_s,
+                "raw": {},
+                "ok": False,
+            }
         t_end = time.perf_counter()
         latency_s = t_end - t_start
 
