@@ -39,7 +39,7 @@ def _approx_tokens_from_messages(messages: List[Dict[str, str]]) -> int:
 
 
 def _summarize_history_with_gemma(
-    client: OpenRouterClient,
+    client: Any,
     history: List[Dict[str, str]],
     keep_last_n: int,
 ) -> List[Dict[str, str]]:
@@ -79,25 +79,40 @@ def _summarize_history_with_gemma(
 
 
 def _apply_context_strategy(
-    client: OpenRouterClient,
+    client: Any,
     base_history: List[Dict[str, str]],
+    app_type: str,
+    has_tool_output: bool,
 ) -> (List[Dict[str, str]], dict):
     cfg = st.session_state.context_strategy
-    mode = cfg["mode"]
+    mode_config = cfg["mode"]
     last_n = cfg["last_n_turns"]
 
     tokens_before = _approx_tokens_from_messages(base_history)
 
-    if mode == "Keep all turns":
+    # Adaptive tweak: for agentic + tools, be more aggressive
+    if app_type == "Agentic assistant" and has_tool_output:
+        # If user said "keep all", treat it as summarize+last N for agentic mode
+        if mode_config == "Keep all turns":
+            mode_effective = "Summarize older turns"
+        else:
+            mode_effective = mode_config
+        # Shrink last_n a bit so we keep fewer raw turns
+        last_n_effective = max(4, last_n // 2)
+    else:
+        mode_effective = mode_config
+        last_n_effective = last_n
+
+    if mode_effective == "Keep all turns":
         trimmed_history = base_history
         strategy_used = "Keep all turns"
-    elif mode == "Last N turns":
-        trimmed_history = base_history[-last_n:]
-        strategy_used = f"Last {last_n} turns"
+    elif mode_effective == "Last N turns":
+        trimmed_history = base_history[-last_n_effective:]
+        strategy_used = f"Last {last_n_effective} turns (adaptive={has_tool_output})"
     else:
-        # Summarize older turns + keep last N.
-        trimmed_history = _summarize_history_with_gemma(client, base_history, last_n)
-        strategy_used = f"Summarize + last {last_n} turns"
+        # Summarize older turns + keep last N (possibly shrunk)
+        trimmed_history = _summarize_history_with_gemma(client, base_history, last_n_effective)
+        strategy_used = f"Summarize + last {last_n_effective} turns (adaptive={has_tool_output})"
 
     tokens_after = _approx_tokens_from_messages(trimmed_history)
 
@@ -124,7 +139,7 @@ def _toy_tool_math(query: str) -> str:
 
 def render(client: Optional[OpenRouterClient], model_label: str) -> None:
     st.subheader("🎛️ Playground: Chatbot vs Agentic")
-
+    has_tool_output = False
     if client is None:
         st.info("Provide an OpenRouter API key in the sidebar to run live model calls.")
         return
@@ -169,6 +184,7 @@ def render(client: Optional[OpenRouterClient], model_label: str) -> None:
             tool_msg = "[TOOL web] Pretend we fetched relevant web pages here and summarized them."
 
         if tool_msg:
+            has_tool_output = True
             tool_assistant_turn = {
                 "role": "assistant",
                 "content": f"(Tool output injected into context)\n\n{tool_msg}",
@@ -177,11 +193,15 @@ def render(client: Optional[OpenRouterClient], model_label: str) -> None:
             st.session_state.chat_history.append(tool_assistant_turn)
 
     # Apply context strategy before calling the model
-    messages_to_send, ctx_meta = _apply_context_strategy(client, messages)
+    messages_to_send, ctx_meta = _apply_context_strategy(client, messages,app_type, has_tool_output)
 
     with st.chat_message("assistant"):
         with st.spinner("Querying OpenRouter / Gemma..."):
-            result = client.chat(messages=messages_to_send)
+            max_tokens = 256 if (app_type == "Agentic assistant" and has_tool_output) else 512
+            result = client.chat(
+                            messages=messages_to_send,
+                            max_tokens=max_tokens,
+                                 )
         if not result.get("ok", False):
             st.error(result["content"])
             ctx_meta["error_type"] = "openrouter_error"
